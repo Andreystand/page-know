@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width">
-<title>Folders with Subfolders Editor</title>
+<title>Folders + Markdown Pages</title>
 
 <style>
 body {
@@ -13,34 +13,25 @@ body {
     height: 100vh;
 }
 
-/* Левое меню */
+/* Sidebar */
 #sidebar {
     width: 260px;
     background: #f0f0f0;
     border-right: 2px solid #ccc;
     padding: 10px;
     overflow-y: auto;
-    box-sizing: border-box;
 }
 
-.folder {
+.item {
     padding: 6px;
     margin: 3px 0;
-    cursor: pointer;
     user-select: none;
 }
 
-.folder.active {
+.item.active {
     background: #bbb;
     border-radius: 6px;
     font-weight: bold;
-}
-
-/* Отступы для вложенности */
-.folder .title {
-    display: flex;
-    gap: 4px;
-    align-items: center;
 }
 
 .children {
@@ -49,21 +40,35 @@ body {
     padding-left: 10px;
 }
 
-/* Правый редактор */
+/* Editor */
 #editor {
     flex: 1;
-    padding: 20px;
-}
-
-.editable {
+    display: flex;
+    flex-direction: column;
     padding: 15px;
-    border: 2px dashed #888;
-    border-radius: 10px;
-    min-height: 200px;
-    font-size: 18px;
 }
 
-/* Кнопки */
+#mdInput {
+    width: 100%;
+    height: 40%;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    resize: none;
+}
+
+#preview {
+    flex: 1;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #aaa;
+    border-radius: 10px;
+    overflow-y: auto;
+    background: #fff;
+}
+
+/* Buttons */
 button {
     width: 100%;
     padding: 10px;
@@ -79,174 +84,176 @@ button {
 
 <body>
 
-<!-- Левый сайдбар -->
+<!-- LEFT SIDEBAR -->
 <div id="sidebar">
-    <h3>Папки</h3>
+    <h3>Структура</h3>
 
-    <div id="folderTree"></div>
+    <div id="tree"></div>
 
-    <button id="createFolderBtn">Создать папку</button>
-    <button id="createSubFolderBtn">Создать подпапку</button>
+    <button id="btnNewFolder">Создать папку</button>
+    <button id="btnNewPage">Создать страницу</button>
 </div>
 
-<!-- Правый редактор -->
+<!-- RIGHT EDITOR -->
 <div id="editor">
-    <div id="editableContent"
-         class="editable"
-         contenteditable="true">
-         Выберите папку или создайте новую.
-    </div>
+    <textarea id="mdInput" placeholder="Markdown..."></textarea>
+    <div id="preview"></div>
 </div>
 
 <script>
-// Хранилище папок
-let folders = JSON.parse(localStorage.getItem("foldersTree")) || {};
-let currentFolder = null;
+// === DATA MODEL ===
+// folders = { id: { id, title, type:"folder", children:[...] } }
+// pages   = { id: { id, title, type:"page", markdown:"..." } }
 
-// Сохранение
-function saveFolders() {
-    localStorage.setItem("foldersTree", JSON.stringify(folders));
+let root = JSON.parse(localStorage.getItem("treeData")) || [];
+let currentId = null;
+
+// === SAVE ===
+function save() {
+    localStorage.setItem("treeData", JSON.stringify(root));
 }
 
-// Уникальный ID
+// === ID ===
 function uid() {
-    return "f_" + Math.random().toString(36).substr(2, 9);
+    return "id_" + Math.random().toString(36).substr(2, 9);
 }
 
-// Рендер дерева
-function renderFolderTree() {
-    const container = document.getElementById("folderTree");
+// === RENDER TREE ===
+function renderTree() {
+    const container = document.getElementById("tree");
     container.innerHTML = "";
 
-    const renderNode = (node, parentEl) => {
-        const div = document.createElement("div");
-        div.className = "folder";
-        if (node.id === currentFolder) div.classList.add("active");
+    const renderNode = (node, parent) => {
+        let div = document.createElement("div");
+        div.className = "item";
+        div.textContent = (node.type === "folder" ? "📁 " : "📄 ") + node.title;
+        if (node.id === currentId) div.classList.add("active");
+        div.onclick = () => selectNode(node.id);
 
-        const title = document.createElement("div");
-        title.className = "title";
+        parent.appendChild(div);
 
-        // Иконка папки + стрелка
-        const arrow = document.createElement("span");
-        arrow.textContent = node.collapsed ? "▶" : "▼";
-
-        const icon = document.createElement("span");
-        icon.textContent = "📁";
-
-        const text = document.createElement("span");
-        text.textContent = node.title;
-
-        title.appendChild(arrow);
-        title.appendChild(icon);
-        title.appendChild(text);
-        div.appendChild(title);
-
-        // Клик по папке
-        title.onclick = () => {
-            node.collapsed = !node.collapsed; // свернуть/развернуть
-            currentFolder = node.id;          // выделить
-            editableContent.innerHTML = node.content; // загрузить
-            saveFolders();
-            renderFolderTree();
-        };
-
-        parentEl.appendChild(div);
-
-        // Если свёрнута — не отображаем дочерние
-        if (node.collapsed) return;
-
-        // Дети
-        if (node.children.length > 0) {
-            const childrenDiv = document.createElement("div");
-            childrenDiv.className = "children";
-            parentEl.appendChild(childrenDiv);
-
-            node.children.forEach(child => renderNode(child, childrenDiv));
+        if (node.type === "folder" && node.children) {
+            let ch = document.createElement("div");
+            ch.className = "children";
+            parent.appendChild(ch);
+            node.children.forEach(child => renderNode(child, ch));
         }
     };
 
-    Object.values(folders).forEach(root => {
-        renderNode(root, container);
-    });
+    root.forEach(node => renderNode(node, container));
 }
 
-// Создать папку
-document.getElementById("createFolderBtn").onclick = () => {
-    const title = prompt("Название папки:");
+// === FIND NODE ===
+function findNodeById(id, list = root) {
+    for (let node of list) {
+        if (node.id === id) return node;
+        if (node.type === "folder") {
+            let found = findNodeById(id, node.children);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+// === SELECT NODE ===
+function selectNode(id) {
+    currentId = id;
+    const node = findNodeById(id);
+
+    if (node.type === "page") {
+        document.getElementById("mdInput").disabled = false;
+        document.getElementById("mdInput").value = node.markdown;
+        renderMarkdown(node.markdown);
+    } else {
+        document.getElementById("mdInput").value = "";
+        document.getElementById("mdInput").disabled = true;
+        document.getElementById("preview").innerHTML = "<i>Это папка. Выберите страницу.</i>";
+    }
+
+    renderTree();
+}
+
+// === CREATE FOLDER ===
+document.getElementById("btnNewFolder").onclick = () => {
+    let title = prompt("Название папки:");
     if (!title) return;
 
-    const id = uid();
-
-    folders[id] = {
-        id,
+    let f = {
+        id: uid(),
         title,
-        content: "Новая папка…",
-        children: [],
-        collapsed: false
+        type: "folder",
+        children: []
     };
 
-    currentFolder = id;
-    saveFolders();
-    renderFolderTree();
-};
-
-// Создать подпапку
-document.getElementById("createSubFolderBtn").onclick = () => {
-    if (!currentFolder) {
-        alert("Сначала выберите папку.");
-        return;
+    if (!currentId) {
+        root.push(f);
+    } else {
+        let parent = findNodeById(currentId);
+        if (parent.type !== "folder") {
+            alert("Страница не может содержать элементы.");
+            return;
+        }
+        parent.children.push(f);
     }
 
-    const parent = findFolderById(currentFolder);
+    save();
+    renderTree();
+};
 
-    const title = prompt("Название подпапки:");
+// === CREATE PAGE ===
+document.getElementById("btnNewPage").onclick = () => {
+    let title = prompt("Название страницы:");
     if (!title) return;
 
-    const id = uid();
-
-    parent.children.push({
-        id,
+    let p = {
+        id: uid(),
         title,
-        content: "Новая подпапка…",
-        children: [],
-        collapsed: false
-    });
+        type: "page",
+        markdown: ""
+    };
 
-    saveFolders();
-    renderFolderTree();
+    if (!currentId) {
+        root.push(p);
+    } else {
+        let parent = findNodeById(currentId);
+        if (parent.type !== "folder") {
+            alert("Страницы нельзя вкладывать в страницы.");
+            return;
+        }
+        parent.children.push(p);
+    }
+
+    save();
+    renderTree();
 };
 
-// Поиск в глубину
-function findFolderById(id) {
-    for (let root of Object.values(folders)) {
-        if (root.id === id) return root;
+// === SIMPLE MARKDOWN PARSER ===
+function renderMarkdown(md) {
+    let html = md
+        .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+        .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+        .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+        .replace(/\*\*(.*)\*\*/gim, "<b>$1</b>")
+        .replace(/\*(.*)\*/gim, "<i>$1</i>")
+        .replace(/`([^`]+)`/gim, "<code>$1</code>")
+        .replace(/\n/gim, "<br>");
 
-        let found = findChild(root, id);
-        if (found) return found;
-    }
-    return null;
+    document.getElementById("preview").innerHTML = html;
 }
 
-function findChild(node, id) {
-    for (let child of node.children) {
-        if (child.id === id) return child;
+// === AUTOSAVE MD ===
+document.getElementById("mdInput").addEventListener("input", () => {
+    let node = findNodeById(currentId);
+    if (!node || node.type !== "page") return;
 
-        let found = findChild(child, id);
-        if (found) return found;
-    }
-    return null;
-}
-
-// Автосохранение контента
-document.getElementById("editableContent").addEventListener("input", () => {
-    if (!currentFolder) return;
-    const folder = findFolderById(currentFolder);
-    folder.content = editableContent.innerHTML;
-    saveFolders();
+    node.markdown = document.getElementById("mdInput").value;
+    save();
+    renderMarkdown(node.markdown);
 });
 
-// Стартовый рендер
-renderFolderTree();
+// === INITIAL RENDER ===
+renderTree();
+document.getElementById("mdInput").disabled = true;
 </script>
 
 </body>
