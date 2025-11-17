@@ -3,38 +3,151 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Editable Page</title>
+<title>Editable Multi-Page System</title>
 
 <style>
-    .editable {
-        padding: 15px;
-        border: 2px dashed #888;
-        border-radius: 10px;
-        min-height: 50px;
-        font-size: 18px;
-        font-family: Roboto, sans-serif;
-    }
+body {
+    margin: 0;
+    font-family: "Roboto", sans-serif;
+    display: flex;
+    height: 100vh;
+}
+
+/* ЛЕВАЯ ПАНЕЛЬ */
+#sidebar {
+    width: 220px;
+    background: #f0f0f0;
+    border-right: 2px solid #ccc;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#sidebar h3 {
+    margin-top: 0;
+}
+
+#pagesList {
+    list-style: none;
+    padding: 0;
+}
+
+#pagesList li {
+    padding: 8px;
+    margin-bottom: 6px;
+    background: #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#pagesList li.active {
+    background: #bbb;
+    font-weight: bold;
+}
+
+#createBtn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* ПРАВАЯ ОБЛАСТЬ – редактируемая страница */
+#editor {
+    flex: 1;
+    padding: 20px;
+}
+
+.editable {
+    padding: 15px;
+    border: 2px dashed #888;
+    border-radius: 10px;
+    min-height: 200px;
+    font-size: 18px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>Редактируемый блок:</h2>
+<!-- ЛЕВАЯ МЕНЮ-ПАНЕЛЬ -->
+<div id="sidebar">
+    <h3>Страницы</h3>
+    <ul id="pagesList"></ul>
+    <button id="createBtn">Создать страницу</button>
+</div>
 
-<div class="editable" id="editableBlock" contenteditable="true">
-    Напиши здесь любой текст — он сохранится автоматически.
+<!-- ПРАВАЯ РЕДАКТИРУЕМАЯ ЗОНА -->
+<div id="editor">
+    <div id="editableContent" 
+         class="editable" 
+         contenteditable="true">
+         Выберите страницу или создайте новую.
+    </div>
 </div>
 
 <script>
-// Загружаем сохранённый текст
-const block = document.getElementById("editableBlock");
-block.innerHTML = localStorage.getItem("editableContent") || block.innerHTML;
+// Хранилище страниц
+let pages = JSON.parse(localStorage.getItem("pages")) || {};
+let currentPage = null;
 
-// Сохраняем изменения
-block.addEventListener("input", () => {
-    localStorage.setItem("editableContent", block.innerHTML);
+// Обновляем меню слева
+function renderPagesList() {
+    const list = document.getElementById("pagesList");
+    list.innerHTML = "";
+
+    Object.keys(pages).forEach(name => {
+        const li = document.createElement("li");
+        li.textContent = name;
+
+        if (name === currentPage) {
+            li.classList.add("active");
+        }
+
+        li.onclick = () => loadPage(name);
+        list.appendChild(li);
+    });
+}
+
+// Создать новую страницу
+document.getElementById("createBtn").onclick = () => {
+    const name = prompt("Название новой страницы:");
+
+    if (!name) return;
+    if (pages[name]) { alert("Страница уже существует"); return; }
+
+    pages[name] = "Новая страница…";
+    currentPage = name;
+    save();
+    renderPagesList();
+    loadPage(name);
+};
+
+// Загрузить страницу
+function loadPage(name) {
+    currentPage = name;
+    document.getElementById("editableContent").innerHTML = pages[name];
+    renderPagesList();
+}
+
+// Сохранить изменения
+function save() {
+    localStorage.setItem("pages", JSON.stringify(pages));
+}
+
+// Автосохранение при вводе
+document.getElementById("editableContent").addEventListener("input", () => {
+    if (currentPage) {
+        pages[currentPage] = editableContent.innerHTML;
+        save();
+    }
 });
+
+// Начальный рендер меню
+renderPagesList();
 </script>
 
 </body>
