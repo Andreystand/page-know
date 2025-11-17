@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width">
-<title>Editable Multi-Page System with Subpages</title>
+<title>Folders with Subfolders Editor</title>
 
 <style>
 body {
@@ -13,30 +13,40 @@ body {
     height: 100vh;
 }
 
-/* ЛЕВОЕ МЕНЮ */
+/* Левое меню */
 #sidebar {
-    width: 250px;
+    width: 260px;
     background: #f0f0f0;
     border-right: 2px solid #ccc;
     padding: 10px;
     overflow-y: auto;
+    box-sizing: border-box;
 }
 
-.page-item {
-    padding: 8px;
-    margin: 4px 0;
-    background: #ddd;
+.folder {
+    padding: 6px;
+    margin: 3px 0;
     cursor: pointer;
-    border-radius: 6px;
+    user-select: none;
 }
 
-.page-item.active {
+.folder.active {
     background: #bbb;
+    border-radius: 6px;
     font-weight: bold;
 }
 
-.subpage {
+/* Отступы для вложенности */
+.folder .title {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.children {
     margin-left: 20px;
+    border-left: 1px dashed #aaa;
+    padding-left: 10px;
 }
 
 /* Правый редактор */
@@ -69,151 +79,174 @@ button {
 
 <body>
 
-<!-- ЛЕВАЯ ПАНЕЛЬ -->
+<!-- Левый сайдбар -->
 <div id="sidebar">
-    <h3>Страницы</h3>
+    <h3>Папки</h3>
 
-    <div id="pageTree"></div>
+    <div id="folderTree"></div>
 
-    <button id="createPageBtn">Создать новую страницу</button>
-    <button id="createSubPageBtn">Создать подстраницу</button>
+    <button id="createFolderBtn">Создать папку</button>
+    <button id="createSubFolderBtn">Создать подпапку</button>
 </div>
 
-<!-- ПРАВАЯ ОБЛАСТЬ -->
+<!-- Правый редактор -->
 <div id="editor">
     <div id="editableContent"
          class="editable"
          contenteditable="true">
-         Выберите страницу или создайте новую.
+         Выберите папку или создайте новую.
     </div>
 </div>
 
 <script>
-// Хранилище: дерево страниц
-let pages = JSON.parse(localStorage.getItem("pagesTree")) || {};
-let currentPage = null;
+// Хранилище папок
+let folders = JSON.parse(localStorage.getItem("foldersTree")) || {};
+let currentFolder = null;
 
-// Сохранение дерева страниц
-function savePages() {
-    localStorage.setItem("pagesTree", JSON.stringify(pages));
+// Сохранение
+function saveFolders() {
+    localStorage.setItem("foldersTree", JSON.stringify(folders));
 }
 
-// Генерация уникального ID
+// Уникальный ID
 function uid() {
-    return "p_" + Math.random().toString(36).substr(2, 9);
+    return "f_" + Math.random().toString(36).substr(2, 9);
 }
 
-// Рендер дерева страниц
-function renderPageTree() {
-    const tree = document.getElementById("pageTree");
-    tree.innerHTML = "";
+// Рендер дерева
+function renderFolderTree() {
+    const container = document.getElementById("folderTree");
+    container.innerHTML = "";
 
-    const renderNode = (node, container, isSub = false) => {
+    const renderNode = (node, parentEl) => {
         const div = document.createElement("div");
-        div.className = "page-item" + (isSub ? " subpage" : "");
-        div.textContent = node.title;
+        div.className = "folder";
+        if (node.id === currentFolder) div.classList.add("active");
 
-        if (currentPage === node.id) div.classList.add("active");
+        const title = document.createElement("div");
+        title.className = "title";
 
-        div.onclick = () => loadPage(node.id);
-        container.appendChild(div);
+        // Иконка папки + стрелка
+        const arrow = document.createElement("span");
+        arrow.textContent = node.collapsed ? "▶" : "▼";
 
-        if (node.children) {
-            node.children.forEach(child => renderNode(child, container, true));
+        const icon = document.createElement("span");
+        icon.textContent = "📁";
+
+        const text = document.createElement("span");
+        text.textContent = node.title;
+
+        title.appendChild(arrow);
+        title.appendChild(icon);
+        title.appendChild(text);
+        div.appendChild(title);
+
+        // Клик по папке
+        title.onclick = () => {
+            node.collapsed = !node.collapsed; // свернуть/развернуть
+            currentFolder = node.id;          // выделить
+            editableContent.innerHTML = node.content; // загрузить
+            saveFolders();
+            renderFolderTree();
+        };
+
+        parentEl.appendChild(div);
+
+        // Если свёрнута — не отображаем дочерние
+        if (node.collapsed) return;
+
+        // Дети
+        if (node.children.length > 0) {
+            const childrenDiv = document.createElement("div");
+            childrenDiv.className = "children";
+            parentEl.appendChild(childrenDiv);
+
+            node.children.forEach(child => renderNode(child, childrenDiv));
         }
     };
 
-    Object.values(pages).forEach(root => {
-        renderNode(root, tree);
+    Object.values(folders).forEach(root => {
+        renderNode(root, container);
     });
 }
 
-// Создать новую страницу
-document.getElementById("createPageBtn").onclick = () => {
-    const title = prompt("Название новой страницы:");
+// Создать папку
+document.getElementById("createFolderBtn").onclick = () => {
+    const title = prompt("Название папки:");
     if (!title) return;
 
     const id = uid();
-    pages[id] = {
+
+    folders[id] = {
         id,
         title,
-        content: "Новая страница…",
-        children: []
+        content: "Новая папка…",
+        children: [],
+        collapsed: false
     };
 
-    currentPage = id;
-    savePages();
-    renderPageTree();
-    loadPage(id);
+    currentFolder = id;
+    saveFolders();
+    renderFolderTree();
 };
 
-// Создать подстраницу
-document.getElementById("createSubPageBtn").onclick = () => {
-    if (!currentPage) {
-        alert("Сначала выбери страницу, к которой добавить подстраницу.");
+// Создать подпапку
+document.getElementById("createSubFolderBtn").onclick = () => {
+    if (!currentFolder) {
+        alert("Сначала выберите папку.");
         return;
     }
 
-    const title = prompt("Название подстраницы:");
+    const parent = findFolderById(currentFolder);
+
+    const title = prompt("Название подпапки:");
     if (!title) return;
 
     const id = uid();
 
-    const subpage = {
+    parent.children.push({
         id,
         title,
-        content: "Новая подстраница…",
-        children: []
-    };
+        content: "Новая подпапка…",
+        children: [],
+        collapsed: false
+    });
 
-    pages[currentPage].children.push(subpage);
-
-    savePages();
-    renderPageTree();
-    loadPage(id);
+    saveFolders();
+    renderFolderTree();
 };
 
-// Загрузить страницу
-function loadPage(id) {
-    const node = findNodeById(id);
-    if (!node) return;
-
-    currentPage = id;
-    document.getElementById("editableContent").innerHTML = node.content;
-
-    renderPageTree();
-}
-
-// Поиск страницы по ID (включая подстраницы)
-function findNodeById(id) {
-    for (let root of Object.values(pages)) {
+// Поиск в глубину
+function findFolderById(id) {
+    for (let root of Object.values(folders)) {
         if (root.id === id) return root;
 
-        let found = findSubpage(root, id);
+        let found = findChild(root, id);
         if (found) return found;
     }
     return null;
 }
 
-function findSubpage(node, id) {
+function findChild(node, id) {
     for (let child of node.children) {
         if (child.id === id) return child;
-        let found = findSubpage(child, id);
+
+        let found = findChild(child, id);
         if (found) return found;
     }
     return null;
 }
 
-// Автосохранение при редактировании
+// Автосохранение контента
 document.getElementById("editableContent").addEventListener("input", () => {
-    if (!currentPage) return;
-    const node = findNodeById(currentPage);
-    node.content = editableContent.innerHTML;
-    savePages();
+    if (!currentFolder) return;
+    const folder = findFolderById(currentFolder);
+    folder.content = editableContent.innerHTML;
+    saveFolders();
 });
 
-// Рендер при загрузке
-renderPageTree();
+// Стартовый рендер
+renderFolderTree();
 </script>
 
 </body>
