@@ -4,17 +4,38 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,400;1,700&display=swap" rel="stylesheet">
-<title>Anna Blok Youtube Page</title>
-<link rel="stylesheet" type="text/css" href="css/style.css" />
+<title>Editable Page</title>
+
+<style>
+    .editable {
+        padding: 15px;
+        border: 2px dashed #888;
+        border-radius: 10px;
+        min-height: 50px;
+        font-size: 18px;
+        font-family: Roboto, sans-serif;
+    }
+</style>
 </head>
+
 <body>
-    <div id="wrapper">
-    	<div class="content">
-			<a href="https://www.youtube.com/channel/UCn5wduCq2Mus0v85QZn9IaA?sub_confirmation=1" class="content__btn">Youtube Channel</a>
-        </div>
-    </div>
+
+<h2>Редактируемый блок:</h2>
+
+<div class="editable" id="editableBlock" contenteditable="true">
+    Напиши здесь любой текст — он сохранится автоматически.
+</div>
+
+<script>
+// Загружаем сохранённый текст
+const block = document.getElementById("editableBlock");
+block.innerHTML = localStorage.getItem("editableContent") || block.innerHTML;
+
+// Сохраняем изменения
+block.addEventListener("input", () => {
+    localStorage.setItem("editableContent", block.innerHTML);
+});
+</script>
+
 </body>
 </html>
