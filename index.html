@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width">
-<title>Editable Multi-Page System</title>
+<title>Editable Multi-Page System with Subpages</title>
 
 <style>
 body {
@@ -13,49 +13,33 @@ body {
     height: 100vh;
 }
 
-/* ЛЕВАЯ ПАНЕЛЬ */
+/* ЛЕВОЕ МЕНЮ */
 #sidebar {
-    width: 220px;
+    width: 250px;
     background: #f0f0f0;
     border-right: 2px solid #ccc;
     padding: 10px;
-    box-sizing: border-box;
+    overflow-y: auto;
 }
 
-#sidebar h3 {
-    margin-top: 0;
-}
-
-#pagesList {
-    list-style: none;
-    padding: 0;
-}
-
-#pagesList li {
+.page-item {
     padding: 8px;
-    margin-bottom: 6px;
+    margin: 4px 0;
     background: #ddd;
-    border-radius: 6px;
     cursor: pointer;
+    border-radius: 6px;
 }
 
-#pagesList li.active {
+.page-item.active {
     background: #bbb;
     font-weight: bold;
 }
 
-#createBtn {
-    width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+.subpage {
+    margin-left: 20px;
 }
 
-/* ПРАВАЯ ОБЛАСТЬ – редактируемая страница */
+/* Правый редактор */
 #editor {
     flex: 1;
     padding: 20px;
@@ -68,86 +52,168 @@ body {
     min-height: 200px;
     font-size: 18px;
 }
+
+/* Кнопки */
+button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
 </style>
 </head>
 
 <body>
 
-<!-- ЛЕВАЯ МЕНЮ-ПАНЕЛЬ -->
+<!-- ЛЕВАЯ ПАНЕЛЬ -->
 <div id="sidebar">
     <h3>Страницы</h3>
-    <ul id="pagesList"></ul>
-    <button id="createBtn">Создать страницу</button>
+
+    <div id="pageTree"></div>
+
+    <button id="createPageBtn">Создать новую страницу</button>
+    <button id="createSubPageBtn">Создать подстраницу</button>
 </div>
 
-<!-- ПРАВАЯ РЕДАКТИРУЕМАЯ ЗОНА -->
+<!-- ПРАВАЯ ОБЛАСТЬ -->
 <div id="editor">
-    <div id="editableContent" 
-         class="editable" 
+    <div id="editableContent"
+         class="editable"
          contenteditable="true">
          Выберите страницу или создайте новую.
     </div>
 </div>
 
 <script>
-// Хранилище страниц
-let pages = JSON.parse(localStorage.getItem("pages")) || {};
+// Хранилище: дерево страниц
+let pages = JSON.parse(localStorage.getItem("pagesTree")) || {};
 let currentPage = null;
 
-// Обновляем меню слева
-function renderPagesList() {
-    const list = document.getElementById("pagesList");
-    list.innerHTML = "";
+// Сохранение дерева страниц
+function savePages() {
+    localStorage.setItem("pagesTree", JSON.stringify(pages));
+}
 
-    Object.keys(pages).forEach(name => {
-        const li = document.createElement("li");
-        li.textContent = name;
+// Генерация уникального ID
+function uid() {
+    return "p_" + Math.random().toString(36).substr(2, 9);
+}
 
-        if (name === currentPage) {
-            li.classList.add("active");
+// Рендер дерева страниц
+function renderPageTree() {
+    const tree = document.getElementById("pageTree");
+    tree.innerHTML = "";
+
+    const renderNode = (node, container, isSub = false) => {
+        const div = document.createElement("div");
+        div.className = "page-item" + (isSub ? " subpage" : "");
+        div.textContent = node.title;
+
+        if (currentPage === node.id) div.classList.add("active");
+
+        div.onclick = () => loadPage(node.id);
+        container.appendChild(div);
+
+        if (node.children) {
+            node.children.forEach(child => renderNode(child, container, true));
         }
+    };
 
-        li.onclick = () => loadPage(name);
-        list.appendChild(li);
+    Object.values(pages).forEach(root => {
+        renderNode(root, tree);
     });
 }
 
 // Создать новую страницу
-document.getElementById("createBtn").onclick = () => {
-    const name = prompt("Название новой страницы:");
+document.getElementById("createPageBtn").onclick = () => {
+    const title = prompt("Название новой страницы:");
+    if (!title) return;
 
-    if (!name) return;
-    if (pages[name]) { alert("Страница уже существует"); return; }
+    const id = uid();
+    pages[id] = {
+        id,
+        title,
+        content: "Новая страница…",
+        children: []
+    };
 
-    pages[name] = "Новая страница…";
-    currentPage = name;
-    save();
-    renderPagesList();
-    loadPage(name);
+    currentPage = id;
+    savePages();
+    renderPageTree();
+    loadPage(id);
+};
+
+// Создать подстраницу
+document.getElementById("createSubPageBtn").onclick = () => {
+    if (!currentPage) {
+        alert("Сначала выбери страницу, к которой добавить подстраницу.");
+        return;
+    }
+
+    const title = prompt("Название подстраницы:");
+    if (!title) return;
+
+    const id = uid();
+
+    const subpage = {
+        id,
+        title,
+        content: "Новая подстраница…",
+        children: []
+    };
+
+    pages[currentPage].children.push(subpage);
+
+    savePages();
+    renderPageTree();
+    loadPage(id);
 };
 
 // Загрузить страницу
-function loadPage(name) {
-    currentPage = name;
-    document.getElementById("editableContent").innerHTML = pages[name];
-    renderPagesList();
+function loadPage(id) {
+    const node = findNodeById(id);
+    if (!node) return;
+
+    currentPage = id;
+    document.getElementById("editableContent").innerHTML = node.content;
+
+    renderPageTree();
 }
 
-// Сохранить изменения
-function save() {
-    localStorage.setItem("pages", JSON.stringify(pages));
-}
+// Поиск страницы по ID (включая подстраницы)
+function findNodeById(id) {
+    for (let root of Object.values(pages)) {
+        if (root.id === id) return root;
 
-// Автосохранение при вводе
-document.getElementById("editableContent").addEventListener("input", () => {
-    if (currentPage) {
-        pages[currentPage] = editableContent.innerHTML;
-        save();
+        let found = findSubpage(root, id);
+        if (found) return found;
     }
+    return null;
+}
+
+function findSubpage(node, id) {
+    for (let child of node.children) {
+        if (child.id === id) return child;
+        let found = findSubpage(child, id);
+        if (found) return found;
+    }
+    return null;
+}
+
+// Автосохранение при редактировании
+document.getElementById("editableContent").addEventListener("input", () => {
+    if (!currentPage) return;
+    const node = findNodeById(currentPage);
+    node.content = editableContent.innerHTML;
+    savePages();
 });
 
-// Начальный рендер меню
-renderPagesList();
+// Рендер при загрузке
+renderPageTree();
 </script>
 
 </body>
