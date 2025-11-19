@@ -1,69 +1,331 @@
-function renderMarkdown(md) {
-  let s = md;
 
-  // Escape HTML
-  s = s.replace(/[&<>]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Folders & Pages — Notebook-like Markdown + Code (no execution)</title>
+<style>
+:root{
+  --sidebar-width: 300px;
+  --accent: #2b6cb0;
+  --muted: #f3f4f6;
+  --card: #fff;
+  --danger: #e53e3e;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: Inter, Roboto, Arial, sans-serif;
+  height:100vh;
+  display:flex;
+  background: #f6f7fb;
+  color:#111;
+}
 
-  // Code blocks ``` ```
-  s = s.replace(/```([\s\S]*?)```/g, (m, code) =>
-    `<pre><code>${code.trim()}</code></pre>`
+/* Sidebar */
+#sidebar{
+  width:var(--sidebar-width);
+  background:var(--muted);
+  border-right:1px solid #ddd;
+  padding:12px;
+  overflow:auto;
+}
+h2{margin:6px 0 12px 0;font-size:18px}
+.small{font-size:13px;color:#444}
+
+/* folder list */
+.folder {
+  background: #fff;
+  padding:8px;
+  margin-bottom:8px;
+  border-radius:6px;
+  border:1px solid #e6e6e6;
+}
+.folder-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.folder-title{
+  font-weight:600;
+  cursor:pointer;
+}
+.folder-actions button{
+  margin-left:6px;
+  padding:6px 8px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  background:white;
+  cursor:pointer;
+}
+.pages-list{
+  margin-top:8px;
+  padding-left:0;
+  list-style:none;
+}
+.page-item{
+  padding:6px;
+  margin-bottom:6px;
+  border-radius:6px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  border:1px solid transparent;
+}
+.page-item:hover{background:#fbfdff}
+.page-item.active{
+  background: linear-gradient(90deg,#e6f0ff,#f8fbff);
+  border-color:#cfe3ff;
+}
+
+/* buttons */
+.btn{
+  display:inline-block;
+  padding:8px 10px;
+  background:var(--accent);
+  color:white;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  font-size:14px;
+}
+.btn.ghost{background:white;color:var(--accent);border:1px solid var(--accent)}
+
+/* main editor */
+#main{
+  flex:1;
+  padding:18px;
+  overflow:auto;
+}
+.editor-top{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:12px;
+}
+.title-input{
+  font-size:20px;
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  background:white;
+  width:60%;
+}
+
+/* Page area card */
+.page-card{
+  background:var(--card);
+  border-radius:10px;
+  padding:14px;
+  box-shadow:0 2px 6px rgba(20,20,40,0.04);
+  min-height:200px;
+}
+
+/* cells */
+.cell{
+  border:1px solid #e6e7eb;
+  border-radius:8px;
+  padding:8px;
+  margin-bottom:12px;
+  background:white;
+}
+.cell-controls{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  align-items:center;
+  margin-bottom:8px;
+  font-size:13px;
+}
+.cell-controls .left, .cell-controls .right {display:flex;gap:6px;align-items:center}
+.small-muted{color:#666;font-size:13px}
+
+/* markdown editor and preview */
+.md-editor, .code-editor, .md-preview {
+  width:100%;
+  border-radius:6px;
+  padding:8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  font-size:14px;
+  box-sizing:border-box;
+}
+.md-editor{min-height:80px;border:1px dashed #d0d4da; resize:vertical}
+.code-editor{min-height:80px;border:1px solid #dfe6ef; background:#f7f9fc; resize:vertical}
+.md-preview{min-height:40px;border:1px solid #f0f2f6;background:#fff}
+
+/* cell buttons */
+.cc-btn{
+  padding:6px 8px;border-radius:6px;border:1px solid #ccc;background:white;cursor:pointer;font-size:13px
+}
+.cc-btn.warn{border-color:var(--danger);color:var(--danger)}
+
+/* helper small UI */
+.controls-row{display:flex;gap:8px;align-items:center}
+.sep{height:24px;border-left:1px solid #eee;margin:0 8px}
+
+/* mobile responsiveness */
+@media(max-width:900px){
+  #sidebar{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR: папки и страницы -->
+<div id="sidebar">
+  <h2>Папки и страницы</h2>
+  <div class="small">Папки не содержат текста. В папках создаются страницы (конечные объекты).</div>
+  <div style="height:12px"></div>
+
+  <div id="foldersList"></div>
+
+  <div style="height:12px"></div>
+  <button id="createFolderBtn" class="btn">Создать папку</button>
+  <div style="height:8px"></div>
+  <button id="createPageInFolderBtn" class="btn ghost">Создать страницу в выбранной папке</button>
+  <div style="height:10px"></div>
+  <button id="exportBtn" class="btn ghost">Экспортировать всё (JSON)</button>
+  <div style="height:8px"></div>
+  <button id="importBtn" class="btn ghost">Импорт (заменит локально)</button>
+  <input type="file" id="importFile" style="display:none" accept="application/json" />
+</div>
+
+<!-- MAIN: редактор страницы -->
+<div id="main">
+  <div class="editor-top">
+    <input id="pageTitle" class="title-input" placeholder="Название страницы" />
+    <div class="controls-row">
+      <button id="addMdCellBtn" class="btn">Добавить Markdown</button>
+      <button id="addCodeCellBtn" class="btn">Добавить Code</button>
+      <div class="sep"></div>
+      <button id="savePageBtn" class="btn ghost">Сохранить</button>
+      <button id="deletePageBtn" class="cc-btn warn">Удалить страницу</button>
+    </div>
+  </div>
+
+  <div class="page-card">
+    <div id="cellsContainer"></div>
+    <div style="height:8px"></div>
+    <div class="small-muted">Ячейки сохраняются автоматически при вводе. Код не выполняется — вывод отключён.</div>
+  </div>
+</div>
+
+<script>
+/* ========== Data model ==========
+folders: array of {id, title, pages: [pageId,...]}
+pages: map pageId -> {id, title, cells: [{type: 'md'|'code', content: ''}, ...]}
+All stored as single object in localStorage under key "notebook_v1"
+=================================*/
+
+const STORAGE_KEY = "notebook_v1_v2";
+
+/* ----- load/save ----- */
+function loadState(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    // seed one default folder + page
+    const idF = uid("folder");
+    const idP = uid("page");
+    const state = {
+      folders: [
+        {id:idF, title:"Default", pages:[idP]}
+      ],
+      pages: {
+        [idP]: {id:idP, title:"Первая страница", cells:[
+          {type:"md", content:"# Привет\n\nЭто **markdown** ячейка."},
+          {type:"code", content:"# пример кода\nprint('Hello')"}
+        ]}
+      },
+      current: {folderId: idF, pageId: idP}
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return state;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch(e){
+    console.error("parse error", e);
+    return {folders:[], pages:{}, current:{}};
+  }
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/* ----- utilities ----- */
+function uid(prefix="id"){
+  return prefix + "_" + Math.random().toString(36).slice(2,10);
+}
+
+/* ----- simple markdown renderer (basic) ----- */
+/* supports headings #, ##, bold **text**, italic *text*, inline `code`, fenced code blocks ```lang\n...\n``` and lists -, numbers, links [text](url) */
+function renderMarkdown(md){
+  // escape html
+  // Экранить только амперсанд, но не трогать HTML
+let s = md.replace(/&(?!(?:[a-z]+;|#\d+;))/gi, "&amp;");
+
+  // code fences
+  s = s.replace(/```([\s\S]*?)```/g, (m, code)=> {
+    return '<pre class="md-code-block" style="background:#0b1220;color:#fff;padding:8px;border-radius:6px;overflow:auto"><code>' + code.replace(/&/g,"&amp;").replace(/</g,"&lt;") + '</code></pre>';
+  });
+  // headings
+  s = s.replace(/^###### (.*$)/gm,'<h6>$1</h6>');
+  s = s.replace(/^##### (.*$)/gm,'<h5>$1</h5>');
+  s = s.replace(/^#### (.*$)/gm,'<h4>$1</h4>');
+  s = s.replace(/^### (.*$)/gm,'<h3>$1</h3>');
+  s = s.replace(/^## (.*$)/gm,'<h2>$1</h2>');
+  s = s.replace(/^# (.*$)/gm,'<h1>$1</h1>');
+  // bold and italic
+  s = s.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  s = s.replace(/\*(.*?)\*/g,'<em>$1</em>');
+  // inline code
+  s = s.replace(/`([^`]+)`/g,'<code style="background:#f1f3f5;padding:2px 6px;border-radius:4px;">$1</code>');
+  // links
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // unordered lists
+  s = s.replace(/^\s*-\s+(.*)$/gm,'<li>$1</li>');
+  s = s.replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>');
+  // paragraphs (remaining lines)
+  s = s.replace(/^\s*([\s\S]*?)\s*$/gm, function(match, line){
+    if (/^<h|^<ul|^<pre|^<li|^<code|^<img/.test(line)) return line;
+    if (line.trim()==="") return "";
+    return "<p>"+line+"</p>";
+  }
+               // tables
+s = s.replace(/((?:\|.*\n)+)/g, block => {
+  const lines = block.trim().split("\n");
+  if (lines.length < 2) return block;
+
+  // header
+  const header = lines[0].split("|").slice(1, -1).map(x => x.trim());
+  // alignment row is lines[1], but we ignore alignment for simplicity
+  const rows = lines.slice(2).map(line =>
+    line.split("|").slice(1, -1).map(x => x.trim())
   );
 
-  // Inline code `code`
-  s = s.replace(/`([^`]+)`/g, `<code>$1</code>`);
+  let html = "<table style='border-collapse:collapse;margin:8px 0;'>";
+  html += "<thead><tr>";
+  header.forEach(h => html += `<th style='border:1px solid #ccc;padding:4px 8px;'>${h}</th>`);
+  html += "</tr></thead><tbody>";
 
-  // Headings
-  s = s.replace(/^### (.*)$/gm, `<h3>$1</h3>`);
-  s = s.replace(/^## (.*)$/gm, `<h2>$1</h2>`);
-  s = s.replace(/^# (.*)$/gm, `<h1>$1</h1>`);
-
-  // Bold and italic
-  s = s.replace(/\*\*(.*?)\*\*/g, `<b>$1</b>`);
-  s = s.replace(/\*(.*?)\*/g, `<i>$1</i>`);
-
-  // Blockquotes
-  s = s.replace(/^> (.*)$/gm, `<blockquote>$1</blockquote>`);
-
-  // Links
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank">$1</a>`);
-
-  // Tables
-  s = s.replace(/((?:\|.*\n)+)/g, block => {
-    const lines = block.trim().split("\n");
-    if (lines.length < 2) return block;
-
-    const header = lines[0].split("|").slice(1, -1).map(x => x.trim());
-    const rows = lines.slice(2).map(line =>
-      line.split("|").slice(1, -1).map(x => x.trim())
-    );
-
-    let html = "<table style='border-collapse:collapse;margin:10px 0;'>";
-    html += "<thead><tr>";
-    header.forEach(h =>
-      html += `<th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f5;">${h}</th>`
-    );
-    html += "</tr></thead><tbody>";
-
-    rows.forEach(row => {
-      html += "<tr>";
-      row.forEach(cell =>
-        html += `<td style="border:1px solid #ccc;padding:6px 10px;">${cell}</td>`
-      );
-      html += "</tr>";
-    });
-
-    html += "</tbody></table>";
-    return html;
+  rows.forEach(row => {
+    html += "<tr>";
+    row.forEach(cell => html += `<td style='border:1px solid #ccc;padding:4px 8px;'>${cell}</td>`);
+    html += "</tr>";
   });
 
-  // Unordered lists
-  s = s.replace(/^(?:-|\*) (.*)$/gm, `<li>$1</li>`);
-  s = s.replace(/(<li>[\s\S]*?<\/li>)/g, `<ul>$1</ul>`);
+  html += "</tbody></table>";
+  return html;
+});
 
-  // Paragraphs
-  s = s.replace(/^(?!<h\d|<ul|<pre|<table|<blockquote|<li)(.+)$/gm,
-    `<p>$1</p>`
-  );
-
+               );
   return s;
 }
+
+
+</body>
+</html>
