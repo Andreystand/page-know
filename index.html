@@ -293,7 +293,35 @@ let s = md.replace(/&(?!(?:[a-z]+;|#\d+;))/gi, "&amp;");
     if (/^<h|^<ul|^<pre|^<li|^<code|^<img/.test(line)) return line;
     if (line.trim()==="") return "";
     return "<p>"+line+"</p>";
+  }
+               // tables
+s = s.replace(/((?:\|.*\n)+)/g, block => {
+  const lines = block.trim().split("\n");
+  if (lines.length < 2) return block;
+
+  // header
+  const header = lines[0].split("|").slice(1, -1).map(x => x.trim());
+  // alignment row is lines[1], but we ignore alignment for simplicity
+  const rows = lines.slice(2).map(line =>
+    line.split("|").slice(1, -1).map(x => x.trim())
+  );
+
+  let html = "<table style='border-collapse:collapse;margin:8px 0;'>";
+  html += "<thead><tr>";
+  header.forEach(h => html += `<th style='border:1px solid #ccc;padding:4px 8px;'>${h}</th>`);
+  html += "</tr></thead><tbody>";
+
+  rows.forEach(row => {
+    html += "<tr>";
+    row.forEach(cell => html += `<td style='border:1px solid #ccc;padding:4px 8px;'>${cell}</td>`);
+    html += "</tr>";
   });
+
+  html += "</tbody></table>";
+  return html;
+});
+
+               );
   return s;
 }
 
@@ -681,4 +709,5 @@ window._nb_state = state;
 
 </body>
 </html>
+
 
