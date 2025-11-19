@@ -264,7 +264,9 @@ function uid(prefix="id"){
 /* supports headings #, ##, bold **text**, italic *text*, inline `code`, fenced code blocks ```lang\n...\n``` and lists -, numbers, links [text](url) */
 function renderMarkdown(md){
   // escape html
-  let s = md.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  // Экранить только амперсанд, но не трогать HTML
+let s = md.replace(/&(?!(?:[a-z]+;|#\d+;))/gi, "&amp;");
+
   // code fences
   s = s.replace(/```([\s\S]*?)```/g, (m, code)=> {
     return '<pre class="md-code-block" style="background:#0b1220;color:#fff;padding:8px;border-radius:6px;overflow:auto"><code>' + code.replace(/&/g,"&amp;").replace(/</g,"&lt;") + '</code></pre>';
@@ -679,3 +681,4 @@ window._nb_state = state;
 
 </body>
 </html>
+
